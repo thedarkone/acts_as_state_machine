@@ -22,9 +22,7 @@ Gem::Specification.new do |s|
              "Rakefile",
              "TODO",
              "acts_as_state_machine.gemspec",
-             "init.rb",
-             "lib/acts_as_state_machine.rb",
-             "rails/init.rb"]
+             "lib/acts_as_state_machine.rb"]
 
   s.test_files = ["test/fixtures",
                   "test/fixtures/conversations.yml",
