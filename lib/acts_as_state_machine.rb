@@ -234,9 +234,7 @@ module ScottBarron                   #:nodoc:
         # * +state+ - The state to find
         # * +args+ - The rest of the args are passed down to ActiveRecord +find+
         def find_in_state(number, state, *args)
-          with_state_scope state do
-            find(number, *args)
-          end
+          _state_scope(state).find(number, *args)
         end
 
         # Wraps ActiveRecord::Base.count to conveniently count all records in
@@ -245,9 +243,7 @@ module ScottBarron                   #:nodoc:
         # * +state+ - The state to find
         # * +args+ - The rest of the args are passed down to ActiveRecord +find+
         def count_in_state(state, *args)
-          with_state_scope state do
-            count(*args)
-          end
+          _state_scope(state).count(*args)
         end
 
         # Wraps ActiveRecord::Base.calculate to conveniently calculate all records in
@@ -256,18 +252,13 @@ module ScottBarron                   #:nodoc:
         # * +state+ - The state to find
         # * +args+ - The rest of the args are passed down to ActiveRecord +calculate+
         def calculate_in_state(state, *args)
-          with_state_scope state do
-            calculate(*args)
-          end
+          _state_scope(state).calculate(*args)
         end
 
         protected
-        def with_state_scope(state)
+        def _state_scope(state)
           raise InvalidState unless states.include?(state.to_sym)
-
-          with_scope :find => {:conditions => ["#{table_name}.#{state_column} = ?", state.to_s]} do
-            yield if block_given?
-          end
+          where("#{table_name}.#{state_column} = ?", state.to_s)
         end
       end
     end
