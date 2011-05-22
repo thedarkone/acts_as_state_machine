@@ -258,7 +258,7 @@ module ScottBarron                   #:nodoc:
         protected
         def _state_scope(state)
           raise InvalidState unless states.include?(state.to_sym)
-          where("#{table_name}.#{state_column} = ?", state.to_s)
+          where(state_column => state.to_s)
         end
       end
     end
