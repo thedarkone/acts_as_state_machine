@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'tastebook-acts_as_state_machine'
-  s.version = '3.0.0'
+  s.version = '3.0.1'
   s.date = '2013-03-26'
 
   s.summary = "Allows ActiveRecord models to define states and transition actions between them"
@@ -15,6 +15,7 @@ Gem::Specification.new do |s|
   s.extra_rdoc_files = ["README"]
 
   s.add_dependency 'activerecord', ['>= 3.1']
+  s.require_paths     = ["lib"]
 
   s.files = ["CHANGELOG",
              "MIT-LICENSE",
