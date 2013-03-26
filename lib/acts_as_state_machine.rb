@@ -12,8 +12,6 @@ module ScottBarron                   #:nodoc:
 
       module SupportingClasses
         # Default transition action.  Always returns true.
-        NOOP = lambda { |o| true }
-
         class State
           attr_reader :name, :value
 
@@ -21,50 +19,51 @@ module ScottBarron                   #:nodoc:
             @name  = name.to_sym
             @value = (options[:value] || @name).to_s
             @after = Array(options[:after])
-            @enter = options[:enter] || NOOP
-            @exit  = options[:exit] || NOOP
+            @enter = options[:enter]
+            @exit  = options[:exit]
           end
 
-          def entering(record)
-            record.send(:run_transition_action, @enter)
+          def entering(record, event, *args)
+            record.send(:run_transition_action, @enter, event, *args)
           end
 
-          def entered(record)
-            @after.each { |action| record.send(:run_transition_action, action) }
+          def entered(record, event, *args)
+            @after.each { |action| record.send(:run_transition_action, action, event, *args) }
           end
 
-          def exited(record)
-            record.send(:run_transition_action, @exit)
+          def exited(record, event, *args)
+            record.send(:run_transition_action, @exit, event, *args)
           end
         end
 
         class StateTransition
-          attr_reader :from, :to, :opts
+          attr_reader :from, :to, :opts, :event
 
           def initialize(options)
             @from  = options[:from].to_s
             @to    = options[:to].to_s
-            @guard = options[:guard] || NOOP
+            @guard = options[:guard]
+            @event = options[:event]
             @opts  = options
           end
 
           def guard(obj)
-            @guard ? obj.send(:run_transition_action, @guard) : true
+            @guard ? obj.send(:run_guard_action, @guard) : true
           end
 
-          def perform(record)
+          def perform(record, *args)
             return false unless guard(record)
             loopback = record.current_state.to_s == to
             states = record.class._states
             next_state = states[to]
             old_state = states[record.current_state.to_s]
 
-            next_state.entering(record) unless loopback
+            next_state.entering(record, event, *args) unless loopback
 
             record.update_attribute(record.class.state_column, next_state.value)
 
-            next_state.entered(record) unless loopback
-            old_state.exited(record) unless loopback
+            next_state.entered(record, event, *args) unless loopback
+            old_state.exited(record, event, *args) unless loopback
             true
           end
 
@@ -92,15 +91,15 @@ module ScottBarron                   #:nodoc:
             @transitions.select { |t| t.from == record.current_state.to_s }
           end
 
-          def fire(record)
+          def fire(record, *args)
             next_states(record).each do |transition|
-              break true if transition.perform(record)
+              break true if transition.perform(record, *args)
             end
           end
 
           def transitions(trans_opts)
             Array(trans_opts[:from]).each do |s|
-              @transitions << SupportingClasses::StateTransition.new(trans_opts.merge({:from => s.to_sym}))
+              @transitions << SupportingClasses::StateTransition.new(trans_opts.merge({:from => s.to_sym, :event => self}))
             end
           end
         end
@@ -146,8 +145,8 @@ module ScottBarron                   #:nodoc:
 
         def run_initial_state_actions
           initial = self.class._states[self.class.initial_state.to_s]
-          initial.entering(self)
-          initial.entered(self)
+          initial.entering(self, nil)
+          initial.entered(self, nil)
         end
 
         # Returns the current state the object is in, as a Ruby symbol.
@@ -167,10 +166,14 @@ module ScottBarron                   #:nodoc:
           end
         end
 
-        def run_transition_action(action)
-          Symbol === action ? self.method(action).call : action.call(self)
+        private
+        def run_guard_action(action)
+          Symbol === action ? self.method(action).call : action.call(self) if action
         end
-        private :run_transition_action
+
+        def run_transition_action(action, event, *args)
+          Symbol === action ? self.method(action).call(event, *args) : action.call(self, event, *args) if action
+        end
       end
 
       module ClassMethods
@@ -205,7 +208,7 @@ module ScottBarron                   #:nodoc:
         def event(event, opts={}, &block)
           e = SupportingClasses::Event.new(event, opts, transition_table, &block)
           self.event_table = event_table.merge(event.to_sym => e)
-          define_method("#{event.to_s}!") { e.fire(self) }
+          define_method("#{event.to_s}!") { |*args| raise InvalidState unless e.fire(self, *args) }
         end
 
         # Define a state of the system. +state+ can take an optional Proc object
