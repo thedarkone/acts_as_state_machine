@@ -1,12 +1,13 @@
-RAILS_ROOT = File.dirname(__FILE__)
+require "test/unit"
 
 require "rubygems"
-require "test/unit"
 require "active_record"
 require "active_record/fixtures"
+require "sqlite3"
 
 $:.unshift File.dirname(__FILE__) + "/../lib"
-require File.dirname(__FILE__) + "/../init"
+$:.unshift File.dirname(__FILE__) + "/../"
+require "#{File.dirname(__FILE__)}/../init"
 
 # Log everything to a global StringIO object instead of a file.
 require "stringio"
@@ -15,13 +16,9 @@ $LOGGER = Logger.new($LOG)
 ActiveRecord::Base.logger = $LOGGER
 
 ActiveRecord::Base.configurations = {
-  "sqlite" => {
-    :adapter => "sqlite",
-    :dbfile  => "state_machine.sqlite.db"
-  },
-
   "sqlite3" => {
     :adapter => "sqlite3",
+    :database => "state_machine_test",
     :dbfile  => "state_machine.sqlite3.db"
   },
 
@@ -43,7 +40,7 @@ ActiveRecord::Base.configurations = {
 }
 
 # Connect to the database.
-ActiveRecord::Base.establish_connection(ENV["DB"] || "sqlite")
+ActiveRecord::Base.establish_connection(ENV["DB"] || "sqlite3")
 
 # Create table for conversations.
 ActiveRecord::Migration.verbose = false
@@ -55,14 +52,18 @@ ActiveRecord::Schema.define(:version => 1) do
   end
 end
 
-class Test::Unit::TestCase
-  self.fixture_path = File.dirname(__FILE__) + "/fixtures/"
-  self.use_transactional_fixtures = true
-  self.use_instantiated_fixtures  = false
+#class ActiveSupport::TestCase
+ # self.fixture_path = File.dirname(__FILE__) + "/fixtures/"
+#  self.use_transactional_fixtures = true
+#  self.use_instantiated_fixtures  = false
 
-  def create_fixtures(*table_names, &block)
-    Fixtures.create_fixtures(Test::Unit::TestCase.fixture_path, table_names, &block)
-  end
+ # def create_fixtures(*table_names, &block)
+ #   ActiveRecord::TestFixtures.create_fixtures(Test::Unit::TestCase.fixture_path, table_names, &block)
+ # end
+#end
+
+ActiveRecord::Base.class_eval do
+  include ScottBarron::Acts::StateMachine
 end
 
 class Conversation < ActiveRecord::Base
@@ -81,38 +82,42 @@ class Conversation < ActiveRecord::Base
     !!@can_close
   end
 
-  def read_enter_action
+  def read_enter_action(event)
     self.read_enter = true
   end
 
-  def read_after_first_action
+  def read_after_first_action(event)
     self.read_after_first = true
   end
 
-  def read_after_second_action
+  def read_after_second_action(event)
     self.read_after_second = true
   end
 
-  def closed_after_action
+  def closed_after_action(event)
     self.closed_after = true
   end
 end
 
 class ActsAsStateMachineTest < Test::Unit::TestCase
   include ScottBarron::Acts::StateMachine
-  fixtures :conversations
 
-  def teardown
+  #include ActiveRecord::TestFixtures
+  #fixtures :conversations
+
+  def teardown1 #throws error
     Conversation.class_eval do
-      write_inheritable_attribute :states, {}
-      write_inheritable_attribute :initial_state, nil
-      write_inheritable_attribute :transition_table, {}
-      write_inheritable_attribute :event_table, {}
-      write_inheritable_attribute :state_column, "state"
+      self._states          = {}
+      self.initial_state   = nil
+      self.transition_table = {}
+      self.event_table      = {}
+      self.state_column     = "state"
+      self.state_change_success_hook = nil
+      self.state_change_failure_hook = nil
 
       # Clear out any callbacks that were set by acts_as_state_machine.
-      write_inheritable_attribute :before_create, []
-      write_inheritable_attribute :after_create, []
+      reset_callbacks :before_create
+      reset_callbacks :after_create
     end
   end
 
@@ -369,7 +374,7 @@ class ActsAsStateMachineTest < Test::Unit::TestCase
       state :needs_attention
       state :closed, :after => :closed_after_action
       state :read, :enter => :read_enter_action,
-      :exit  => Proc.new { |o| o.read_exit = true },
+      :exit  => Proc.new { |o, args| o.read_exit = true },
       :after => [:read_after_first_action, :read_after_second_action]
 
       event :view do
@@ -438,7 +443,7 @@ class ActsAsStateMachineTest < Test::Unit::TestCase
       acts_as_state_machine :initial => :needs_attention
       state :junk
       state :needs_attention
-      state :read, :exit => lambda { |o| o.read_exit = true }
+      state :read, :exit => lambda { |o, args| o.read_exit = true }
 
       event :view do
         transitions :to => :read, :from => :needs_attention
@@ -460,7 +465,7 @@ class ActsAsStateMachineTest < Test::Unit::TestCase
     Conversation.class_eval do
       acts_as_state_machine :initial => :needs_attention
       state :needs_attention
-      state :read, :exit => lambda { |o| o.read_exit = true }
+      state :read, :exit => lambda { |o, args| o.read_exit = true }
 
       event :view do
         transitions :to => :read, :from => [:needs_attention, :read]
@@ -479,8 +484,8 @@ class ActsAsStateMachineTest < Test::Unit::TestCase
   def test_entry_and_after_actions_called_for_initial_state
     Conversation.class_eval do
       acts_as_state_machine :initial => :needs_attention
-      state :needs_attention, :enter => lambda { |o| o.needs_attention_enter = true },
-      :after => lambda { |o| o.needs_attention_after = true }
+      state :needs_attention, :enter => lambda { |o, args| o.needs_attention_enter = true },
+      :after => lambda { |o, args| o.needs_attention_after = true }
     end
 
     c = Conversation.create!
