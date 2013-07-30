@@ -62,7 +62,7 @@ module ScottBarron                   #:nodoc:
 
             record.update_attribute(record.class.state_column, next_state.value)
 
-            record.send(:run_state_change_action, self.class.state_change_success_hook, next_state, event)
+            record.send(:run_state_change_action, record.class.state_change_success_hook, next_state, event)
 
             next_state.entered(record, event, *args) unless loopback
             old_state.exited(record, event, *args) unless loopback
@@ -96,7 +96,7 @@ module ScottBarron                   #:nodoc:
           def fire(record, *args)
             transitioned = next_states(record).any? {|transition| transition.perform(record, *args) }
             unless transitioned
-              record.send(:run_state_change_action, self.class.state_change_failure_hook, record.class._states[record.current_state.to_s], self)
+              record.send(:run_state_change_action, record.class.state_change_failure_hook, record.class._states[record.current_state.to_s], self)
             end
             transitioned
           end
