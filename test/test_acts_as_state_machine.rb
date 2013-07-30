@@ -52,16 +52,16 @@ ActiveRecord::Schema.define(:version => 1) do
   end
 end
 
-
 #class ActiveSupport::TestCase
  # self.fixture_path = File.dirname(__FILE__) + "/fixtures/"
 #  self.use_transactional_fixtures = true
 #  self.use_instantiated_fixtures  = false
 
  # def create_fixtures(*table_names, &block)
- #   Fixtures.create_fixtures(Test::Unit::TestCase.fixture_path, table_names, &block)
+ #   ActiveRecord::TestFixtures.create_fixtures(Test::Unit::TestCase.fixture_path, table_names, &block)
  # end
 #end
+
 ActiveRecord::Base.class_eval do
   include ScottBarron::Acts::StateMachine
 end
@@ -101,9 +101,11 @@ end
 
 class ActsAsStateMachineTest < Test::Unit::TestCase
   include ScottBarron::Acts::StateMachine
-  fixtures :conversations
 
-  def teardown
+  #include ActiveRecord::TestFixtures
+  #fixtures :conversations
+
+  def teardown1 #throws error
     Conversation.class_eval do
       self._states          = {}
       self.initial_state   = nil
