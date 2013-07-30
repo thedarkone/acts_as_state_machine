@@ -62,6 +62,8 @@ module ScottBarron                   #:nodoc:
 
             record.update_attribute(record.class.state_column, next_state.value)
 
+            record.send(:run_state_change_action, self.class.state_change_success_hook, next_state, event)
+
             next_state.entered(record, event, *args) unless loopback
             old_state.exited(record, event, *args) unless loopback
             true
@@ -92,9 +94,11 @@ module ScottBarron                   #:nodoc:
           end
 
           def fire(record, *args)
-            next_states(record).each do |transition|
-              break true if transition.perform(record, *args)
+            transitioned = next_states(record).any? {|transition| transition.perform(record, *args) }
+            unless transitioned
+              record.send(:run_state_change_action, self.class.state_change_failure_hook, record.class._states[record.current_state.to_s], self)
             end
+            transitioned
           end
 
           def transitions(trans_opts)
@@ -132,6 +136,12 @@ module ScottBarron                   #:nodoc:
             class_attribute :state_column
             self.state_column = options[:column] || 'state'
 
+            class_attribute :state_change_success_hook
+            self.state_change_success_hook = options[:success]
+
+            class_attribute :state_change_failure_hook
+            self.state_change_failure_hook = options[:failure]
+
             before_create :set_initial_state
             after_create  :run_initial_state_actions
           end
@@ -146,6 +156,7 @@ module ScottBarron                   #:nodoc:
         def run_initial_state_actions
           initial = self.class._states[self.class.initial_state.to_s]
           initial.entering(self, nil)
+          run_state_change_action(self.class.state_change_success_hook, initial, nil)
           initial.entered(self, nil)
         end
 
@@ -173,6 +184,10 @@ module ScottBarron                   #:nodoc:
 
         def run_transition_action(action, event, *args)
           Symbol === action ? self.method(action).call(event, *args) : action.call(self, event, *args) if action
+        end
+
+        def run_state_change_action(action, state, event, *args)
+          Symbol === action ? self.method(action).call(state, event, *args) : action.call(self, state, event, *args) if action
         end
       end
 
