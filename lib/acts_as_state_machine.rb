@@ -208,7 +208,7 @@ module ScottBarron                   #:nodoc:
         def event(event, opts={}, &block)
           e = SupportingClasses::Event.new(event, opts, transition_table, &block)
           self.event_table = event_table.merge(event.to_sym => e)
-          define_method("#{event.to_s}!") { |*args| raise InvalidState unless e.fire(self, *args) }
+          define_method("#{event.to_s}!") { |*args| e.fire(self, *args) || (raise InvalidState) }
         end
 
         # Define a state of the system. +state+ can take an optional Proc object
