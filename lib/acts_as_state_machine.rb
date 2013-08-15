@@ -172,7 +172,11 @@ module ScottBarron                   #:nodoc:
         end
 
         def run_transition_action(action, event, *args)
-          Symbol === action ? self.method(action).call(event, *args) : action.call(self, event, *args) if action
+          #VK: original line
+          #Symbol === action ? self.method(action).call(event, *args) : action.call(self, event, *args) if action
+
+          #VK: removed 'event' param - it cause 'wrong number of args in a number of places'
+          Symbol === action ? self.method(action).call(*args) : action.call(self, *args) if action
         end
       end
 
