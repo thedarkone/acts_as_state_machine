@@ -60,7 +60,8 @@ module ScottBarron                   #:nodoc:
 
             next_state.entering(record, event, *args) unless loopback
 
-            record.update_attribute(record.class.state_column, next_state.value)
+            record.send(record.class.state_column+'=', next_state.value)
+            record.save!
 
             next_state.entered(record, event, *args) unless loopback
             old_state.exited(record, event, *args) unless loopback
