@@ -53,6 +53,8 @@ module ScottBarron                   #:nodoc:
 
           def perform(record, *args)
             return false unless guard(record)
+
+            options = args.last.is_a?(Hash) ? args.pop : {}
             loopback = record.current_state.to_s == to
             states = record.class._states
             next_state = states[to]
@@ -61,7 +63,7 @@ module ScottBarron                   #:nodoc:
             next_state.entering(record, event, *args) unless loopback
 
             record.send(record.class.state_column+'=', next_state.value)
-            record.save!
+            record.save!(options)
 
             next_state.entered(record, event, *args) unless loopback
             old_state.exited(record, event, *args) unless loopback
