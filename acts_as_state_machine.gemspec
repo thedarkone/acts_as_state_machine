@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'acts_as_state_machine'
-  s.version = '3.0.3'
+  s.version = '3.0.4'
   s.date = '2013-03-26'
 
   s.summary = "Allows ActiveRecord models to define states and transition actions between them"

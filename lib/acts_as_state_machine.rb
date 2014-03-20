@@ -135,8 +135,8 @@ module ScottBarron                   #:nodoc:
             class_attribute :state_column
             self.state_column = options[:column] || 'state'
 
-            before_create :set_initial_state
-            after_create  :run_initial_state_actions
+            before_create :set_initial_state, unless: :skip_initial_callbacks?
+            after_create  :run_initial_state_actions, unless: :skip_initial_callbacks?
           end
         end
       end
@@ -170,6 +170,11 @@ module ScottBarron                   #:nodoc:
         end
 
         private
+        def skip_initial_callbacks?
+          state = self.read_attribute(self.class.state_column)
+          state.present? && self.class.states.include?(state.to_sym)
+        end
+
         def run_guard_action(action)
           Symbol === action ? self.method(action).call : action.call(self) if action
         end
