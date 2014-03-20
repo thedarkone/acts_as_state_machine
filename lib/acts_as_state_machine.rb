@@ -51,7 +51,7 @@ module ScottBarron                   #:nodoc:
             @guard ? obj.send(:run_guard_action, @guard) : true
           end
 
-          def perform(record, *args)
+          def perform(record, raise_error, *args)
             return false unless guard(record)
 
             options = args.last.is_a?(Hash) ? args.pop : {}
@@ -63,7 +63,7 @@ module ScottBarron                   #:nodoc:
             next_state.entering(record, event, *args) unless loopback
 
             record.send(record.class.state_column+'=', next_state.value)
-            record.save!(options)
+            raise_error ? record.save!(options) : record.save(options)
 
             next_state.entered(record, event, *args) unless loopback
             old_state.exited(record, event, *args) unless loopback
@@ -94,10 +94,12 @@ module ScottBarron                   #:nodoc:
             @transitions.select { |t| t.from == record.current_state.to_s }
           end
 
-          def fire(record, *args)
+          def fire(record, raise_error = true, *args)
             next_states(record).each do |transition|
-              break true if transition.perform(record, *args)
+              break true if transition.perform(record, raise_error, *args)
             end
+
+            true
           end
 
           def transitions(trans_opts)
@@ -135,8 +137,8 @@ module ScottBarron                   #:nodoc:
             class_attribute :state_column
             self.state_column = options[:column] || 'state'
 
-            before_create :set_initial_state
-            after_create  :run_initial_state_actions
+            before_create :set_initial_state, unless: :skip_initial_callbacks?
+            after_create  :run_initial_state_actions, unless: :skip_initial_callbacks?
           end
         end
       end
@@ -170,6 +172,11 @@ module ScottBarron                   #:nodoc:
         end
 
         private
+        def skip_initial_callbacks?
+          state = self.read_attribute(self.class.state_column)
+          state.present? && self.class.states.include?(state.to_sym)
+        end
+
         def run_guard_action(action)
           Symbol === action ? self.method(action).call : action.call(self) if action
         end
@@ -215,7 +222,9 @@ module ScottBarron                   #:nodoc:
         def event(event, opts={}, &block)
           e = SupportingClasses::Event.new(event, opts, transition_table, &block)
           self.event_table = event_table.merge(event.to_sym => e)
-          define_method("#{event.to_s}!") { |*args| e.fire(self, *args) || (raise InvalidState) }
+
+          define_method("#{event.to_s}!") { |*args| e.fire(self, raise_error = true, *args) || (raise InvalidState) }
+          define_method("#{event.to_s}") { |*args| e.fire(self, raise_error = false, *args) }
         end
 
         # Define a state of the system. +state+ can take an optional Proc object
